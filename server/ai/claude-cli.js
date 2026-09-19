@@ -1,5 +1,9 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { logger } from '../util/logger.js';
+import { buildSpawnPlan } from '../util/exec.js';
 import { DATA_DIR } from '../util/paths.js';
 
 /**
@@ -50,10 +54,14 @@ export async function checkCli() {
 
 function execCli(args, { input, timeout = 300_000, cwd = DATA_DIR } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(CLI, args, {
+    // 윈도우에서 claude 는 claude.cmd 로 깔린다. shell 없는 spawn 은 이를 실행하지 못하므로
+    // 실행 파일을 직접 찾아 확장자에 맞는 방식으로 띄운다.
+    const plan = buildSpawnPlan(CLI, args);
+    const child = spawn(plan.file, plan.args, {
       cwd,
       env: { ...process.env },
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...plan.options,
     });
 
     let stdout = '';
@@ -127,7 +135,14 @@ export async function ask(prompt, opts = {}) {
 
   const args = ['-p', '--output-format', 'json', '--model', model];
 
-  if (system) args.push('--append-system-prompt', system);
+  // 시스템 프롬프트에는 줄바꿈이 들어 있다. 윈도우에서는 줄바꿈이 섞인 인자를
+  // 명령줄로 안전하게 전달할 수 없으므로 임시 파일로 건넨다 (모든 OS 동일하게 처리).
+  let systemFile = null;
+  if (system) {
+    systemFile = path.join(os.tmpdir(), `nba-system-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
+    fs.writeFileSync(systemFile, system, 'utf8');
+    args.push('--append-system-prompt-file', systemFile);
+  }
 
   if (allowedTools.length) {
     args.push('--allowedTools', allowedTools.join(','));
@@ -144,7 +159,22 @@ export async function ask(prompt, opts = {}) {
   const started = Date.now();
   try {
     logger.debug('ai', `Claude CLI 호출: ${label} (model=${model})`);
-    const raw = await execCli(args, { input: prompt, timeout });
+
+    let raw;
+    try {
+      raw = await execCli(args, { input: prompt, timeout });
+    } catch (err) {
+      // 구버전 CLI 에는 --append-system-prompt-file 이 없다. 그럴 때는 지시문을
+      // 프롬프트 앞에 붙여 stdin 으로 보낸다 (명령줄을 거치지 않으니 어디서나 안전하다).
+      const unknownOption = systemFile && /unknown option/i.test(`${err.stderr || ''}${err.message || ''}`);
+      if (!unknownOption) throw err;
+
+      logger.warn('ai', 'CLI 가 --append-system-prompt-file 을 지원하지 않아 프롬프트에 합쳐 보냅니다.');
+      const stripped = args.filter(
+        (arg, index) => arg !== '--append-system-prompt-file' && args[index - 1] !== '--append-system-prompt-file',
+      );
+      raw = await execCli(stripped, { input: `${system}\n\n---\n\n${prompt}`, timeout });
+    }
 
     let text;
     let meta = {};
@@ -169,6 +199,7 @@ export async function ask(prompt, opts = {}) {
     logger.debug('ai', `Claude CLI 완료: ${label} (${seconds}s, ${String(text).length}자)`, meta);
     return String(text).trim();
   } finally {
+    if (systemFile) fs.rmSync(systemFile, { force: true });
     release();
   }
 }

@@ -35,6 +35,22 @@ npm run doctor    # 환경 점검
 `SEARCH` 를 고칠 수 있다 — 코드 변경 없이 선택자 데이터만 바꾸면 된다.
 `--from <파일>` 로 저장된 HTML 을 네트워크 없이 재진단할 수 있다.
 
+## 플랫폼
+
+윈도우에서 npm 으로 설치된 CLI 는 `npx.cmd`, `claude.cmd` 처럼 배치 파일이라
+shell 없는 `spawn` 이 ENOENT 로 죽는다. **외부 명령을 띄울 때는 반드시
+`server/util/exec.js` 의 `buildSpawnPlan()` 을 거친다.** 그 안에서 PATH·PATHEXT 를
+직접 훑어 확장자를 찾고, 배치 파일이면 셸을 거치며 인자를 직접 인용한다.
+
+- Playwright 설치는 `npx` 대신 `playwright/cli.js` 를 `process.execPath` 로 직접 실행한다.
+- **줄바꿈이 든 값을 명령줄 인자로 넘기지 말 것.** 윈도우에서 깨진다.
+  시스템 프롬프트는 임시 파일(`--append-system-prompt-file`)로 넘긴다.
+- `platform` 을 인자로 받는 함수는 `path.win32` / `path.posix` 를 명시적으로 쓴다.
+  host 의 `path.join` 을 쓰면 다른 OS 를 시험할 수 없다.
+
+`test/exec.test.js` 가 platform·PATH·파일 존재 여부를 주입해 윈도우 동작을
+리눅스에서도 검증한다.
+
 ## 주의
 
 - `data/` 에는 로그인 세션이 들어 있다. 커밋하지 말 것 (`.gitignore` 에 있음).

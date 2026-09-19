@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -25,7 +25,8 @@ export function startMockNaver(port = 4399) {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 윈도우 경로는 file:///C:/... 형태라 문자열을 직접 이어 붙이면 절대 일치하지 않는다.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { url } = await startMockNaver();
   console.log(`모의 네이버 에디터: ${url}`);
 }

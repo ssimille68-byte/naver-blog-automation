@@ -12,7 +12,8 @@
     "dev": "node --watch server/index.js",
     "setup": "node scripts/setup.js",
     "doctor": "node scripts/doctor.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "capture": "node scripts/capture-naver.js"
   },
   "dependencies": {
     "express": "^4.21.2",

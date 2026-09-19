@@ -83,20 +83,46 @@ xvfb-run -a npm start
 ## 테스트
 
 ```bash
-npm test
+npm test      # 전체 (네트워크 없이 동작)
+npm run capture   # 실제 네이버 HTML 을 받아 파서 검증 + 픽스처 저장
 ```
 
-네이버에 접속하지 않고, **스마트에디터 ONE 을 흉내 낸 로컬 모의 페이지**(`test/fixtures/`)를 상대로 발행 자동화 전체를 검증합니다. iframe 탐지 · 팝업 닫기 · 제목/본문 입력 · 서식 붙여넣기 · 이미지 업로드 · 캡션 · 발행 레이어 · 게시글 URL 회수까지 확인합니다.
+`npm test` 는 네트워크 없이 두 가지를 검증합니다.
+
+- **발행 자동화** — **스마트에디터 ONE 을 흉내 낸 로컬 모의 페이지**(`test/fixtures/editor.html`)를 상대로 iframe 탐지 · 팝업 닫기 · 제목/본문 입력 · 서식 붙여넣기 · 이미지 업로드 · 캡션 · 발행 레이어 · 게시글 URL 회수까지 확인합니다.
+- **검색 결과 파싱** — 마크업 세대별 표본(구형 레이아웃, 신형 `sds-comps` 레이아웃, 미지의 구조, 광고·중복·연관검색어 잡음)을 상대로 각 분기가 제대로 도는지 확인합니다.
 
 ```bash
 node test/mock-server.js   # 모의 에디터를 브라우저로 직접 열어 보기
 ```
 
+### 실제 네이버 HTML 로 파서 확인하기
+
+표본 테스트는 "파서가 다루기로 한 구조"만 검증합니다. **실제 네이버가 지금 내려보내는 HTML** 로 확인하려면:
+
+```bash
+npm run capture
+npm run capture "홈카페 원두" "러닝 입문"   # 키워드 지정
+npm run capture --no-save                  # 저장 없이 확인만
+```
+
+- 실제 검색 페이지를 열어 파서를 돌리고, **몇 건을 뽑았는지 / 어떤 카드 선택자가 적중했는지 / 어떤 필드가 통째로 비었는지**를 보고합니다
+- HTML 을 `test/fixtures/naver/` 에 저장하고, 이후 `npm test` 가 이를 자동으로 회귀 테스트에 사용합니다
+- 자동화 차단 페이지가 내려오거나 본문이 비면 그것도 알려 줍니다
+
 ## 네이버가 화면을 바꿨을 때
 
-스마트에디터의 클래스명은 해시가 붙어 있고(`publish_btn__m9KHH`) 배포마다 바뀝니다. 그래서 선택자는 전부 **후보 배열**로 되어 있고 접두사 부분 일치와 텍스트 매칭을 함께 씁니다.
+네이버는 검색 결과와 에디터 DOM 을 자주 바꿉니다. 에디터 클래스명은 해시까지 붙어 있고(`publish_btn__m9KHH`) 배포마다 달라집니다.
 
-그래도 깨진다면 **`server/naver/selectors.js` 한 파일만** 고치면 됩니다. 실패하면 `data/logs/` 에 그 순간의 화면 캡처가 남으니 무엇이 달라졌는지 바로 확인할 수 있습니다.
+그래서 **선택자는 전부 `server/naver/selectors.js` 한 파일에 후보 배열로 모여 있습니다.** 에디터는 접두사 부분 일치와 텍스트 매칭을, 검색은 세대별 카드 선택자와 링크 패턴 폴백을 함께 씁니다.
+
+깨졌을 때 고치는 순서:
+
+| 증상 | 할 일 |
+|---|---|
+| 글감 수집이 0건 | `npm run capture` → 어떤 선택자가 안 걸리는지 확인 → `SEARCH` 수정 → `npm test` |
+| 요약·언론사·날짜만 빈칸 | 캡처 보고서의 "비어 있는 필드" 경고 확인 → 해당 필드 선택자만 수정 |
+| 발행이 실패 | `data/logs/` 의 화면 캡처 확인 → `SEL` 수정 → `npm test` |
 
 ## 구조
 
@@ -106,6 +132,7 @@ server/
   browser.js              Playwright 관리, Chromium 자동 설치, 프로필 잠금
   collect/
     naver-search.js       네이버 뉴스·블로그 검색 수집
+    extractors.js         검색 결과 카드 파서 (브라우저 안에서 실행, 저장된 HTML 로도 검증 가능)
     article.js            기사·포스트 본문 추출
   pipeline/
     topics.js             키워드 확장 → 수집 → 글감 후보 생성
@@ -114,13 +141,16 @@ server/
     images.js             다운로드 → AI 시각 검증 → 최고점 선택
   naver/
     session.js            로그인 창 띄우기, 세션 저장·확인·삭제
-    selectors.js          스마트에디터 선택자 (깨지면 여기만 수정)
+    selectors.js          검색·에디터 DOM 선택자 (깨지면 여기만 수정)
     format.js             블록 → 에디터용 HTML / 미리보기
     publisher.js          에디터 조작 및 발행
   routes/api.js           REST API + SSE
   jobs.js                 백그라운드 작업 큐
+scripts/
+  capture-naver.js        실제 네이버 HTML 캡처 + 파서 검증
+  doctor.js               환경 점검
 public/                   대시보드 (빌드 도구 없는 순수 HTML/CSS/JS)
-test/                     모의 에디터 기반 통합 테스트
+test/                     모의 에디터 기반 발행 테스트 + 검색 파서 테스트
 ```
 
 ## 알아 두면 좋은 것

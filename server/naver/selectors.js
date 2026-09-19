@@ -125,3 +125,57 @@ export async function firstPresent(scope, candidates, { timeout = 3000 } = {}) {
   }
   return null;
 }
+
+/**
+ * 검색 결과 카드 선택자.
+ *
+ * 네이버 검색은 개편 때마다 마크업 세대가 통째로 바뀐다. 지금까지 확인된 세대를
+ * 모두 후보로 두고, 카드 선택자를 순서대로 시도해 처음으로 결과가 나오는 세대를 쓴다.
+ * 어느 세대에도 걸리지 않으면 `fallbackLink` 로 링크 패턴만 보고 긁는다.
+ *
+ * 브라우저 안에서 실행되는 추출기(server/collect/extractors.js)에 인자로 넘어가므로
+ * 순수 데이터만 담아야 한다.
+ */
+export const SEARCH = {
+  news: {
+    cards: [
+      'div.sds-comps-base-layout.sds-comps-full-layout',
+      'div.news_wrap.api_ani_send',
+      'li.bx',
+      'div.group_news > div',
+    ],
+    title: [
+      'a.news_tit',
+      'span.sds-comps-text-type-headline1',
+      'a[href*="n.news.naver.com"]',
+      'a[href^="http"]',
+    ],
+    summary: ['div.news_dsc', 'span.sds-comps-text-type-body1', 'a.api_txt_lines.dsc_txt_wrap'],
+    press: ['a.info.press', 'span.sds-comps-profile-info-title-text', '.press'],
+    date: ['span.info', 'span.sds-comps-profile-info-subtext'],
+    fallbackLink: 'a[href*="n.news.naver.com"], a[href*="news.naver.com"]',
+    minTitleLength: 8,
+    minFallbackTitleLength: 12,
+  },
+  blog: {
+    cards: [
+      'div.view_wrap',
+      'li.bx._svp_item',
+      'div.sds-comps-base-layout.sds-comps-full-layout',
+      'li.bx',
+    ],
+    title: [
+      'a.title_link',
+      'a.api_txt_lines.total_tit',
+      'span.sds-comps-text-type-headline1',
+      'a[href*="blog.naver.com"]',
+    ],
+    summary: ['a.dsc_link', 'div.api_txt_lines.dsc_txt', 'span.sds-comps-text-type-body1'],
+    author: ['a.name', 'span.sds-comps-profile-info-title-text', '.user_info > a'],
+    date: ['span.sub', 'span.sds-comps-profile-info-subtext'],
+    fallbackLink: 'a[href*="blog.naver.com"]',
+    linkPattern: 'blog\\.naver\\.com|post\\.naver\\.com|tistory|brunch',
+    minTitleLength: 6,
+    minFallbackTitleLength: 8,
+  },
+};

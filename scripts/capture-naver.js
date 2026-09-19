@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
- * 실제 네이버 검색 결과 HTML 을 내려받아 파서를 검증하고, 그 HTML 을 픽스처로 저장한다.
+ * 실제 네이버 검색 결과로 파서를 검증하고, 고칠 거리가 있으면 그대로 붙여 넣을 수 있는
+ * 진단 리포트를 만든다.
  *
- *   node scripts/capture-naver.js                 # 기본 키워드로 실행
- *   node scripts/capture-naver.js "홈카페" "러닝"  # 키워드 직접 지정
- *   node scripts/capture-naver.js --no-save       # 저장하지 않고 확인만
+ *   npm run capture                          기본 키워드로 실행
+ *   npm run capture -- "홈카페" "러닝 입문"    키워드 지정
+ *   npm run capture -- --no-save             HTML 을 저장하지 않음
+ *   npm run capture -- --from <파일.html>     이미 저장한 HTML 을 다시 진단 (네트워크 불필요)
  *
- * 저장된 HTML 은 test/fixtures/naver/ 에 들어가고, `npm test` 가 자동으로 이를
- * 회귀 테스트로 사용한다. 네이버가 검색 결과 구조를 바꿔 수집이 0건이 되면
- * 이 스크립트를 다시 돌려 픽스처를 갱신한 뒤 선택자를 고치면 된다.
+ * 결과 HTML 은 test/fixtures/naver/ 에 저장되고 `npm test` 가 회귀 테스트로 쓴다.
+ * 리포트는 capture-report.md 로 저장된다 — 파서가 0건을 뽑았을 때 이 파일만 있으면
+ * 실제 카드가 어떤 태그·클래스로 감싸여 있는지 알 수 있어 선택자를 고칠 수 있다.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,107 +18,205 @@ import { fileURLToPath } from 'node:url';
 import { withScraper } from '../server/browser.js';
 import { BLOG_URL, NEWS_URL } from '../server/collect/naver-search.js';
 import { extractBlogCards, extractNewsCards } from '../server/collect/extractors.js';
+import { anchorChains, diagnoseSelectors, domSkeleton } from '../server/collect/diagnose.js';
 import { SEARCH } from '../server/naver/selectors.js';
 
-const FIXTURE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'test', 'fixtures', 'naver');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_DIR = path.join(ROOT, 'test', 'fixtures', 'naver');
+const REPORT_FILE = path.join(ROOT, 'capture-report.md');
 
-const args = process.argv.slice(2);
-const save = !args.includes('--no-save');
-const keywords = args.filter((arg) => !arg.startsWith('--'));
-if (!keywords.length) keywords.push('홈카페 원두');
+// ── 인자 파싱 ──────────────────────────────────────────────────────────────
+const argv = process.argv.slice(2);
+const save = !argv.includes('--no-save');
+const fromFiles = [];
+const keywords = [];
+for (let i = 0; i < argv.length; i += 1) {
+  if (argv[i] === '--from') fromFiles.push(argv[++i]);
+  else if (!argv[i].startsWith('--')) keywords.push(argv[i]);
+}
+if (!keywords.length && !fromFiles.length) keywords.push('홈카페 원두');
 
 const slug = (text) => text.replace(/[^가-힣a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+const kindOf = (name) => (path.basename(name).startsWith('blog') ? 'blog' : 'news');
 
-/** Which card selector generation actually matched? Tells us what to fix when it breaks. */
-async function diagnose(page, selectors) {
-  return page.evaluate((sel) => {
-    const counts = {};
-    for (const candidate of sel.cards) {
-      counts[candidate] = document.querySelectorAll(candidate).length;
-    }
-    return {
-      cardCounts: counts,
-      fallbackLinks: document.querySelectorAll(sel.fallbackLink).length,
-      bodyChars: document.body.innerText.replace(/\s+/g, '').length,
-      blocked: /로봇이 아닙니다|비정상적인 검색|captcha/i.test(document.body.innerText),
-    };
-  }, selectors);
-}
+const report = [];
+const say = (line = '') => {
+  console.log(line);
+  report.push(line);
+};
 
-function report(label, items, info) {
-  const status = items.length ? '✅' : '❌';
-  console.log(`\n${status} ${label} — ${items.length}건 추출`);
+let checked = 0;
+let failed = 0;
+let degraded = 0;
+let navErrors = 0;
+
+/** Run both extractors + diagnostics against whatever page is currently loaded. */
+async function inspect(page, { kind, label }) {
+  checked += 1;
+  const selectors = SEARCH[kind];
+  const extractor = kind === 'news' ? extractNewsCards : extractBlogCards;
+
+  const info = await page.evaluate(diagnoseSelectors, { selectors });
+  const items = await page.evaluate(extractor, { selectors, max: 10 });
 
   const matched = Object.entries(info.cardCounts).filter(([, count]) => count > 0);
-  if (matched.length) {
-    console.log(`   카드 선택자 적중: ${matched.map(([sel, n]) => `${sel} (${n}개)`).join(', ')}`);
-  } else {
-    console.log(`   ⚠️  알려진 카드 선택자가 하나도 걸리지 않음 (폴백 링크 ${info.fallbackLinks}개)`);
-  }
-  if (info.blocked) console.log('   ⚠️  네이버가 자동화 차단 페이지를 내려보냈습니다.');
-  if (info.bodyChars < 500) console.log(`   ⚠️  본문이 비어 있습니다 (${info.bodyChars}자). 페이지가 제대로 안 열렸을 수 있습니다.`);
+  const fields = ['summary', 'date', kind === 'news' ? 'press' : 'author'];
+  const emptyFields = items.length ? fields.filter((field) => items.every((item) => !item[field])) : [];
 
-  for (const item of items.slice(0, 3)) {
-    console.log(`   · ${item.title.slice(0, 55)}`);
-    console.log(`     ${item.press || item.author || '(출처 없음)'} | ${item.date || '(날짜 없음)'}`);
-    console.log(`     ${(item.summary || '(요약 없음)').slice(0, 70)}`);
+  // 제목만 건진 상태도 "성공"이 아니다 — 요약·출처·날짜가 통째로 비면 글감 판단이 불가능하다.
+  const status = !items.length ? 'fail' : emptyFields.length || !matched.length ? 'degraded' : 'ok';
+  if (status === 'fail') failed += 1;
+  if (status === 'degraded') degraded += 1;
+
+  const mark = { ok: '✅', degraded: '⚠️', fail: '❌' }[status];
+  say(`\n### ${mark} ${label} — ${items.length}건 추출${status === 'degraded' ? ' (일부 필드 누락)' : ''}`);
+  say(`- 페이지 제목: \`${info.title}\``);
+  say(`- 본문 길이: ${info.bodyChars}자`);
+  if (info.blocked) say('- ⚠️ **네이버가 자동화 차단 페이지를 내려보냈습니다.**');
+  if (info.noResults) say('- ⚠️ 네이버가 "검색결과 없음"을 반환했습니다 (키워드 문제일 수 있습니다).');
+  if (info.bodyChars < 500) say('- ⚠️ 본문이 거의 비어 있습니다. 페이지가 제대로 열리지 않았을 수 있습니다.');
+
+  say('');
+  say('| 카드 선택자 | 매칭 수 |');
+  say('|---|---|');
+  for (const [selector, count] of Object.entries(info.cardCounts)) {
+    say(`| \`${selector}\` | ${count} |`);
+  }
+  say(`| (폴백 링크 \`${selectors.fallbackLink}\`) | ${info.fallbackLinks} |`);
+
+  if (!matched.length) say('\n⚠️ **알려진 카드 선택자가 하나도 걸리지 않았습니다.**');
+
+  if (emptyFields.length) {
+    say(`\n⚠️ 모든 항목에서 비어 있는 필드: **${emptyFields.join(', ')}** — 해당 선택자가 낡았습니다.`);
   }
 
-  // 카드는 찾았는데 특정 필드만 통째로 비어 있다면, 내부 선택자가 낡았다는 뜻이다.
   if (items.length) {
-    const fields = ['summary', 'date', 'press' in items[0] ? 'press' : 'author'];
-    const empty = fields.filter((field) => items.every((item) => !item[field]));
-    if (empty.length) console.log(`   ⚠️  모든 항목에서 비어 있는 필드: ${empty.join(', ')} — 해당 선택자를 확인하세요.`);
+    say('\n추출 결과 (상위 3건):');
+    say('```');
+    for (const item of items.slice(0, 3)) {
+      say(`제목  ${item.title.slice(0, 60)}`);
+      say(`출처  ${item.press || item.author || '(없음)'}   날짜  ${item.date || '(없음)'}`);
+      say(`요약  ${(item.summary || '(없음)').slice(0, 70)}`);
+      say(`링크  ${item.link.slice(0, 80)}`);
+      say('');
+    }
+    say('```');
   }
+
+  // 정상일 때는 구조를 덤프하지 않는다. 하지만 0건이든, 제목만 건졌든, 카드 선택자가
+  // 안 걸렸든 — 고칠 거리가 있으면 반드시 덤프해야 붙여 넣기만으로 수정할 수 있다.
+  if (status !== 'ok') {
+    const chains = await page.evaluate(anchorChains, { linkPattern: selectors.fallbackLink.split(',')[0].replace(/a\[href\*="|"\]/g, ''), limit: 3 });
+    if (chains.length) {
+      say('\n실제 기사 링크의 조상 사슬 (← 여기서 카드 선택자를 읽어 낼 수 있습니다):');
+      say('```');
+      for (const entry of chains) {
+        say(`"${entry.title}"`);
+        entry.chain.forEach((sig, depth) => say(`${'  '.repeat(depth)}${sig}`));
+        say('');
+      }
+      say('```');
+    }
+
+    const skeleton = await page.evaluate(domSkeleton, { maxDepth: 6, maxLines: 80 });
+    say('\n결과 영역 DOM 골격:');
+    say('```');
+    skeleton.forEach((line) => say(line));
+    say('```');
+  }
+
+  return items.length;
 }
 
-let failures = 0;
-let navErrors = 0;
+// ── 실행 ───────────────────────────────────────────────────────────────────
+say(`# 네이버 검색 파서 진단 리포트`);
+say(`\n생성: ${new Date().toISOString()}`);
 
 await withScraper(async (context) => {
   const page = await context.newPage();
-  if (save) fs.mkdirSync(FIXTURE_DIR, { recursive: true });
+
+  for (const file of fromFiles) {
+    const kind = kindOf(file);
+    const target = path.resolve(file);
+    say(`\n${'─'.repeat(64)}`);
+    say(`\n## ${kind === 'news' ? '뉴스' : '블로그'} · 저장된 파일 \`${path.relative(ROOT, target)}\``);
+    try {
+      const html = fs.readFileSync(target, 'utf8');
+      // 저장된 HTML 의 상대 경로 링크가 검색 결과 기준으로 풀리도록 실제 주소로 띄운다.
+      const url = 'https://search.naver.com/search.naver?query=replay';
+      await page.route('**/*', (route) =>
+        route.request().resourceType() === 'document'
+          ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: html })
+          : route.abort(),
+      );
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+      await inspect(page, { kind, label: path.basename(target) });
+      await page.unroute('**/*');
+    } catch (err) {
+      failed += 1;
+      say(`\n❌ 파일을 읽지 못했습니다: ${err.message}`);
+    }
+  }
+
+  if (keywords.length) {
+    if (save) fs.mkdirSync(FIXTURE_DIR, { recursive: true });
+    // 검색 결과 판독에 이미지·폰트는 필요 없다.
+    await page.route('**/*', (route) =>
+      ['image', 'media', 'font'].includes(route.request().resourceType()) ? route.abort() : route.continue(),
+    );
+  }
 
   for (const keyword of keywords) {
-    for (const [kind, url, selectors, extractor] of [
-      ['news', NEWS_URL(keyword), SEARCH.news, extractNewsCards],
-      ['blog', BLOG_URL(keyword), SEARCH.blog, extractBlogCards],
+    for (const [kind, url] of [
+      ['news', NEWS_URL(keyword)],
+      ['blog', BLOG_URL(keyword)],
     ]) {
-      console.log(`\n${'─'.repeat(70)}\n${kind === 'news' ? '뉴스' : '블로그'} · "${keyword}"\n${url}`);
+      say(`\n${'─'.repeat(64)}`);
+      say(`\n## ${kind === 'news' ? '뉴스' : '블로그'} · "${keyword}"`);
+      say(`\n${url}`);
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
         await page.waitForTimeout(2000);
-
-        const info = await diagnose(page, selectors);
-        const items = await page.evaluate(extractor, { selectors, max: 10 });
-        report(`${kind}/${keyword}`, items, info);
-        if (!items.length) failures += 1;
+        await inspect(page, { kind, label: `${kind} / ${keyword}` });
 
         if (save) {
           const file = path.join(FIXTURE_DIR, `${kind}-${slug(keyword)}.html`);
           fs.writeFileSync(file, await page.content());
-          console.log(`   💾 ${path.relative(process.cwd(), file)}`);
+          say(`\n💾 저장: \`${path.relative(ROOT, file)}\``);
         }
       } catch (err) {
-        failures += 1;
+        checked += 1;
+        failed += 1;
         navErrors += 1;
-        console.log(`\n❌ ${kind}/${keyword} — 페이지를 열지 못했습니다: ${err.message.split('\n')[0]}`);
+        say(`\n### ❌ ${kind} / ${keyword} — 페이지를 열지 못했습니다`);
+        say(`\n\`${err.message.split('\n')[0]}\``);
       }
     }
   }
+
   await page.close().catch(() => {});
 });
 
-console.log(`\n${'─'.repeat(70)}`);
-if (navErrors === failures && navErrors > 0) {
-  console.log(`\n${navErrors}개 페이지를 아예 열지 못했습니다. 파서 문제가 아니라 네트워크 문제입니다.`);
-  console.log('인터넷 연결과 프록시 설정을 확인한 뒤 다시 실행해 주세요.\n');
-} else if (failures) {
-  console.log(`\n${failures}개 검색에서 결과를 뽑지 못했습니다.`);
-  console.log('저장된 HTML 을 열어 카드 구조를 확인하고 server/naver/selectors.js 의 SEARCH 를 고치세요.');
-  console.log('고친 뒤 `npm test` 로 저장된 픽스처에 대해 바로 재검증할 수 있습니다.\n');
+// ── 마무리 ─────────────────────────────────────────────────────────────────
+say(`\n${'─'.repeat(64)}`);
+if (navErrors === checked && navErrors > 0) {
+  say(`\n## 결론: 네트워크 문제`);
+  say(`\n${navErrors}개 페이지를 아예 열지 못했습니다. 파서가 아니라 인터넷 연결·프록시 문제입니다.`);
+} else if (failed || degraded) {
+  const parts = [];
+  if (failed) parts.push(`${failed}개 실패(0건)`);
+  if (degraded) parts.push(`${degraded}개 부분 성공(필드 누락)`);
+  say(`\n## 결론: ${checked}개 중 ${parts.join(', ')}`);
+  say('\n위의 **조상 사슬**과 **DOM 골격**을 보고 `server/naver/selectors.js` 의 `SEARCH` 를 고치세요.');
+  say('고친 뒤 `npm test` 로 저장된 픽스처에 대해 바로 재검증할 수 있습니다.');
 } else {
-  console.log('\n모든 검색에서 결과를 정상적으로 추출했습니다.');
-  if (save) console.log('저장된 HTML 은 이제 `npm test` 의 회귀 테스트로 쓰입니다.\n');
+  say(`\n## 결론: ${checked}개 모두 정상`);
+  say('\n파서가 실제 네이버 HTML 에서 제목·요약·출처·날짜를 모두 뽑았습니다.');
+  if (save) say('저장된 HTML 은 이제 `npm test` 의 회귀 테스트로 쓰입니다.');
 }
-process.exit(failures ? 1 : 0);
+
+fs.writeFileSync(REPORT_FILE, report.join('\n') + '\n');
+console.log(`\n📄 리포트를 저장했습니다: ${path.relative(process.cwd(), REPORT_FILE)}`);
+console.log('   문제가 있다면 이 파일 내용을 그대로 복사해서 알려 주시면 선택자를 고쳐 드립니다.\n');
+
+process.exit(failed || degraded ? 1 : 0);

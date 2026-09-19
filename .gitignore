@@ -3,3 +3,7 @@ data/
 *.log
 .DS_Store
 .env
+
+# capture 로 생성되는 진단 리포트와 캡처본
+capture-report.md
+test/fixtures/naver/*.html

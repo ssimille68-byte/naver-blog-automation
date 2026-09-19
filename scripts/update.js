@@ -17,7 +17,7 @@ const REPO = 'naver-blog-automation';
 const BRANCH = 'claude/naver-blog-automation-9u2lnh';
 
 /** 갱신 대상. 이 목록 밖의 파일(내 설정·데이터)은 손대지 않는다. */
-const TRACKED = [/^server\//, /^public\//, /^scripts\//, /^test\//, /^package\.json$/, /^README\.md$/, /^CLAUDE\.md$/];
+const TRACKED = [/^server\//, /^public\//, /^scripts\//, /^test\//, /^package\.json$/, /^[^/]+\.md$/];
 
 // 사용자가 직접 만든 캡처본·리포트는 덮어쓰지 않는다.
 const SKIP = [/^test\/fixtures\/naver\/.*\.html$/];

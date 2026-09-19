@@ -1,0 +1,21 @@
+{
+  "name": "naver-blog-automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 기반 네이버 블로그 자동화 - 글감 수집, 글 작성, 이미지 선별, 자동 발행",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "setup": "node scripts/setup.js",
+    "doctor": "node scripts/doctor.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "playwright": "1.56.1"
+  }
+}

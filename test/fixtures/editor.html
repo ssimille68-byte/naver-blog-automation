@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>스마트에디터 ONE (모의)</title>
+<style>
+ body{font-family:sans-serif;margin:0}
+ .header{display:flex;justify-content:flex-end;gap:8px;padding:10px;border-bottom:1px solid #ddd}
+ .publish_btn__m9KHH{background:#03c75a;color:#fff;border:0;padding:8px 18px;border-radius:4px;cursor:pointer}
+ .se-toolbar{display:flex;gap:6px;padding:8px;border-bottom:1px solid #eee}
+ .se-section-documentTitle{padding:16px;border-bottom:1px solid #eee;font-size:26px}
+ .se-main-container{padding:16px;min-height:360px;font-size:15px;line-height:1.8}
+ .se-text-paragraph{outline:none;min-height:1.6em}
+ [contenteditable]{outline:none}
+ .se-placeholder{color:#bbb}
+ .layer_publish{display:none;position:fixed;right:20px;top:54px;width:330px;background:#fff;
+   border:1px solid #ccc;border-radius:8px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.2)}
+ .layer_publish.on{display:block}
+ .confirm_btn__WEaBq{background:#03c75a;color:#fff;border:0;padding:8px 18px;border-radius:4px;cursor:pointer;width:100%;margin-top:12px}
+ .option_list__ry7Zd{display:none;border:1px solid #ddd;margin-top:4px}
+ .option_list__ry7Zd.on{display:block}
+ .option_list__ry7Zd button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:6px 10px;cursor:pointer}
+ .se-popup{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;z-index:50}
+ .se-popup .box{background:#fff;padding:24px;border-radius:8px}
+ figure{margin:16px 0}
+ figure img{max-width:100%}
+ .se-caption{color:#888;font-size:13px;text-align:center;margin-top:6px}
+ .tag-chip{display:inline-block;background:#eee;border-radius:10px;padding:2px 8px;margin:2px;font-size:12px}
+</style></head>
+<body>
+<!-- 진입 시 뜨는 임시저장 복구 팝업 (실제 에디터와 동일한 방해 요소) -->
+<div class="se-popup" id="restorePopup">
+  <div class="box"><p>작성 중이던 글이 있습니다. 불러올까요?</p>
+    <button class="se-popup-button-cancel">취소</button>
+    <button class="se-popup-button-confirm">불러오기</button></div>
+</div>
+
+<div class="header">
+  <button class="publish_btn__m9KHH">발행</button>
+</div>
+
+<div class="se-toolbar">
+  <button class="se-image-toolbar-button" data-name="image">사진</button>
+  <button class="se-horizontalLine-toolbar-button" data-name="horizontalLine">구분선</button>
+  <button class="se-quotation-toolbar-button" data-name="quotation">인용구</button>
+  <input type="file" class="se-image-file-input" accept="image/*" multiple hidden>
+</div>
+
+<div class="se-section-documentTitle">
+  <div class="se-text-paragraph" contenteditable="true" data-placeholder="제목"></div>
+</div>
+
+<div class="se-main-container">
+  <div class="se-component se-text se-section-text">
+    <div class="se-text-paragraph" contenteditable="true"></div>
+  </div>
+</div>
+
+<div class="layer_publish" id="publishLayer">
+  <p><strong>발행 설정</strong></p>
+  <div>카테고리
+    <button class="selectbox_button__jb1Dt">카테고리 선택</button>
+    <div class="option_list__ry7Zd">
+      <button>일상</button><button>IT·테크</button><button>맛집</button>
+    </div>
+  </div>
+  <div style="margin-top:8px">공개설정
+    <label><input type="radio" name="vis" value="public" checked>전체공개</label>
+    <label><input type="radio" name="vis" value="neighbor">이웃공개</label>
+    <label><input type="radio" name="vis" value="private">비공개</label>
+  </div>
+  <div style="margin-top:8px">태그 <input id="tag-input" placeholder="#태그 입력"><div id="tagChips"></div></div>
+  <button class="confirm_btn__WEaBq">발행</button>
+</div>
+
+<script>
+// ── 모의 에디터 동작: 실제 SE ONE 의 핵심 거동만 흉내 낸다 ──────────────
+const body = document.querySelector('.se-main-container');
+const state = { published: false, title: '', tags: [], category: '', visibility: 'public', images: 0, pasteUsed: 0 };
+window.__mock = state;
+
+document.querySelector('.se-popup-button-cancel').onclick = () =>
+  document.getElementById('restorePopup').remove();
+
+// 붙여넣기 → HTML 을 그대로 본문에 반영 (SE ONE 이 컴포넌트로 변환하는 것을 단순화)
+body.addEventListener('paste', (event) => {
+  const html = event.clipboardData?.getData('text/html');
+  if (!html) return;
+  event.preventDefault();
+  state.pasteUsed += 1;
+  const holder = document.createElement('div');
+  holder.innerHTML = html;
+  const target = document.getSelection()?.anchorNode;
+  const para = (target?.nodeType === 1 ? target : target?.parentElement)?.closest('.se-text-paragraph');
+  (para?.parentElement || body).append(...holder.childNodes);
+  // 이어서 입력할 새 문단을 만든다
+  const next = document.createElement('div');
+  next.className = 'se-text-paragraph';
+  next.contentEditable = 'true';
+  body.append(next);
+  placeCaret(next);
+});
+
+function placeCaret(el) {
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// 사진 버튼 → 파일 선택
+const fileInput = document.querySelector('.se-image-file-input');
+document.querySelector('.se-image-toolbar-button').onclick = () => fileInput.click();
+fileInput.addEventListener('change', () => {
+  for (const file of fileInput.files) {
+    state.images += 1;
+    const figure = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    const caption = document.createElement('div');
+    caption.className = 'se-caption';
+    const capText = document.createElement('div');
+    capText.className = 'se-text-paragraph';
+    capText.contentEditable = 'true';
+    caption.append(capText);
+    figure.append(img, caption);
+    body.append(figure);
+    const next = document.createElement('div');
+    next.className = 'se-text-paragraph';
+    next.contentEditable = 'true';
+    body.append(next);
+    placeCaret(next);
+  }
+});
+
+document.querySelector('.se-horizontalLine-toolbar-button').onclick = () => body.append(document.createElement('hr'));
+
+// 발행 1단계
+document.querySelector('.publish_btn__m9KHH').onclick = () => {
+  state.title = document.querySelector('.se-section-documentTitle .se-text-paragraph').innerText.trim();
+  document.getElementById('publishLayer').classList.add('on');
+};
+
+// 카테고리 드롭다운
+const optionList = document.querySelector('.option_list__ry7Zd');
+document.querySelector('.selectbox_button__jb1Dt').onclick = () => optionList.classList.toggle('on');
+optionList.querySelectorAll('button').forEach((button) => {
+  button.onclick = () => {
+    state.category = button.textContent;
+    document.querySelector('.selectbox_button__jb1Dt').textContent = button.textContent;
+    optionList.classList.remove('on');
+  };
+});
+
+document.querySelectorAll('input[name="vis"]').forEach((radio) => {
+  radio.onchange = () => { state.visibility = radio.value; };
+});
+document.querySelectorAll('.layer_publish label').forEach((label) => {
+  label.onclick = () => { const r = label.querySelector('input'); if (r) { r.checked = true; state.visibility = r.value; } };
+});
+
+const tagInput = document.getElementById('tag-input');
+tagInput.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || !tagInput.value.trim()) return;
+  event.preventDefault();
+  state.tags.push(tagInput.value.trim());
+  const chip = document.createElement('span');
+  chip.className = 'tag-chip';
+  chip.textContent = '#' + tagInput.value.trim();
+  document.getElementById('tagChips').append(chip);
+  tagInput.value = '';
+});
+
+// 발행 2단계 → 게시글 URL 로 이동 (실제 네이버와 동일하게 URL 이 바뀐다)
+document.querySelector('.confirm_btn__WEaBq').onclick = () => {
+  state.published = true;
+  state.bodyHtml = body.innerHTML;
+  state.bodyText = body.innerText;
+  sessionStorage.setItem('mockResult', JSON.stringify(state));
+  location.href = '/blog.naver.com/testblogger/223456789';
+};
+</script>
+</body></html>

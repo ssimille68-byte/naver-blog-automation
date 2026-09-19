@@ -133,3 +133,120 @@ export const BLOG_UNKNOWN = `
   <a href="https://blog.naver.com/future/224000001">미래 레이아웃 블로그 글 제목</a>
   <a href="https://blog.naver.com/future">홈</a>
 </div></main>`;
+
+/**
+ * 2026-09 실제 캡처에서 확인된 구조.
+ *
+ * 핵심: 언론사·날짜를 담은 `sds-comps-profile` 은 제목이 들어 있는
+ * `sds-comps-base-layout` 의 **형제**다. 감싸는 컨테이너의 클래스는 해시라서
+ * (v33RoPVqTTc4AJaM) 선택자로 박을 수 없다. 제목에서 위로 올라가 찾아야 한다.
+ * 제목·출처 링크 끝에는 낭독기용 "새 창 열림" 이 붙어 나온다.
+ */
+export const NEWS_SDS_2026 = `
+<div id="main_pack"><div class="sds-comps-vertical-layout sds-comps-full-layout fds-news-item-list-tab">
+
+  <div class="sds-comps-vertical-layout sds-comps-full-layout v33RoPVqTTc4AJaM">
+    <div class="sds-comps-horizontal-layout sds-comps-full-layout sds-comps-profile type-basic">
+      <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-source">
+        <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-title">
+          <span class="sds-comps-text sds-comps-text-ellipsis-1 sds-comps-text-type-body2">
+            <a class="fender-ui_a82de4df" href="https://media.naver.com/press/015">한국경제</a></span>
+        </div>
+        <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-subtexts">
+          <span class="sds-comps-text sds-comps-text-type-body2 sds-comps-profile-info-subtext">6시간 전</span>
+          <span class="sds-comps-text sds-comps-text-type-body2 sds-comps-profile-info-subtext">
+            <a class="fender-ui_a82de4df hoUJt4M_1EFcn64D" href="https://n.news.naver.com/mnews/article/015/0005193000">네이버뉴스<span class="blind">새 창 열림</span></a></span>
+        </div>
+      </div>
+    </div>
+    <div class="sds-comps-base-layout sds-comps-full-layout">
+      <div class="sds-comps-vertical-layout sds-comps-full-layout">
+        <a class="fender-ui_a82de4df" title="북적이는 축제속 고요한 커피머신 작동음…카누가 만든 홈카페 [2026청춘커피페스티벌]" href="https://www.hankyung.com/article/202609195237i">
+          <span class="sds-comps-text sds-comps-text-type-headline1">북적이는 축제속 고요한 커피머신 작동음…카누가 만든 홈카페 [2026청춘...</span><span class="blind">새 창 열림</span></a>
+        <a class="fender-ui_a82de4df" href="https://www.hankyung.com/article/202609195237i">
+          <span class="sds-comps-text sds-comps-text-type-body1">기존 캡슐보다 1.7배 많은 9.5g의 원두를 전용 용기에 담아냈다.</span></a>
+      </div>
+    </div>
+  </div>
+
+  <div class="sds-comps-vertical-layout sds-comps-full-layout v33RoPVqTTc4AJaM">
+    <div class="sds-comps-horizontal-layout sds-comps-full-layout sds-comps-profile type-basic">
+      <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-source">
+        <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-title">
+          <span class="sds-comps-text sds-comps-text-type-body2"><a href="https://media.naver.com/press/018">에너지경제</a></span>
+        </div>
+        <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-subtexts">
+          <span class="sds-comps-text sds-comps-text-type-body2 sds-comps-profile-info-subtext">2026.09.19.</span>
+        </div>
+      </div>
+    </div>
+    <div class="sds-comps-base-layout sds-comps-full-layout">
+      <div class="sds-comps-vertical-layout sds-comps-full-layout">
+        <a href="https://www.ekn.kr/web/view.php?key=20260919027564379">
+          <span class="sds-comps-text sds-comps-text-type-headline1">추석 선물, 취향 저격 홈카페 용품이 뜬다</span><span class="blind">새 창 열림</span></a>
+        <a href="https://www.ekn.kr/web/view.php?key=20260919027564379">
+          <span class="sds-comps-text sds-comps-text-type-body1">10만원 안팎의 작은 머신부터 우유 스팀 기능을 갖춘 제품까지.</span></a>
+      </div>
+    </div>
+  </div>
+
+</div></div>`;
+
+export const BLOG_SDS_2026 = `
+<div id="main_pack"><div class="sds-comps-vertical-layout sds-comps-full-layout fds-ugc-single-intention-item-list-tab">
+
+  <div class="sds-comps-vertical-layout sds-comps-full-layout nrOx_btSWTA8aZLR">
+    <div class="sds-comps-vertical-layout sds-comps-full-layout A5Z8LBOa3AtkVTtc _fe_view_power_content">
+      <div class="sds-comps-horizontal-layout sds-comps-full-layout sds-comps-profile type-basic">
+        <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-source">
+          <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-title">
+            <span class="sds-comps-text sds-comps-text-ellipsis sds-comps-text-ellipsis-1 sds-comps-text-type-body2">
+              <a class="fender-ui_a82de4df fender-ui_475445f0" href="https://blog.naver.com/sina1310">우당탕탕 지구여행<span class="blind">새 창 열림</span></a></span>
+          </div>
+          <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-subtexts">
+            <span class="sds-comps-text sds-comps-text-type-body2 sds-comps-profile-info-subtext">3일 전</span>
+          </div>
+        </div>
+      </div>
+      <div class="sds-comps-vertical-layout sds-comps-full-layout WLbzTADKKK803lX9">
+        <div class="sds-comps-base-layout sds-comps-full-layout HgcVGkusjngBkaeZ">
+          <div class="sds-comps-vertical-layout sds-comps-full-layout caO6YazRLWkrKrW3">
+            <a class="fender-ui_a82de4df Fgpgc4i25zYbDnpH" href="https://blog.naver.com/sina1310/224413619068">
+              <span class="sds-comps-text sds-comps-text-type-headline1">홈카페 원두 추천 커피 입문자라면 그냥 외우세요</span><span class="blind">새 창 열림</span></a>
+            <a href="https://blog.naver.com/sina1310/224413619068">
+              <span class="sds-comps-text sds-comps-text-type-body1">고소한 커피의 풍미, 풍성하고 쫀득한 크레마를 찾는다면.</span></a>
+          </div>
+        </div>
+        <div class="sds-comps-base-layout sds-comps-full-layout">
+          <img src="thumb.jpg" alt="">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sds-comps-vertical-layout sds-comps-full-layout nrOx_btSWTA8aZLR">
+    <div class="sds-comps-vertical-layout sds-comps-full-layout A5Z8LBOa3AtkVTtc _fe_view_power_content">
+      <div class="sds-comps-horizontal-layout sds-comps-full-layout sds-comps-profile type-basic">
+        <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-source">
+          <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-title">
+            <span class="sds-comps-text sds-comps-text-type-body2"><a href="https://blog.naver.com/tennislee-">테니스리</a></span>
+          </div>
+          <div class="sds-comps-horizontal-layout sds-comps-inline-layout sds-comps-profile-info-subtexts">
+            <span class="sds-comps-text sds-comps-text-type-body2 sds-comps-profile-info-subtext">2026.09.01.</span>
+          </div>
+        </div>
+      </div>
+      <div class="sds-comps-vertical-layout sds-comps-full-layout WLbzTADKKK803lX9">
+        <div class="sds-comps-base-layout sds-comps-full-layout HgcVGkusjngBkaeZ">
+          <div class="sds-comps-vertical-layout sds-comps-full-layout caO6YazRLWkrKrW3">
+            <a href="https://blog.naver.com/tennislee-/224394886019">
+              <span class="sds-comps-text sds-comps-text-type-headline1">홈카페 원두 추천 실패 없는 에스프레소 베스트</span><span class="blind">새 창 열림</span></a>
+            <a href="https://blog.naver.com/tennislee-/224394886019">
+              <span class="sds-comps-text sds-comps-text-type-body1">내 추출 기구와 취향에 맞는 원두를 찾는 방법입니다.</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div></div>`;

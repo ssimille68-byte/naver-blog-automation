@@ -103,6 +103,32 @@ test('뉴스: max 를 넘겨 받으면 그 수만큼만 돌려준다', async () 
   assert.equal((await parseNews(1)).length, 1);
 });
 
+test('뉴스: 2026년 실제 구조 — 제목 블록 밖의 언론사·날짜까지 찾아낸다', async () => {
+  await load(SAMPLES.NEWS_SDS_2026);
+  const items = await parseNews();
+
+  assert.equal(items.length, 2);
+  assert.equal(
+    items[0].title,
+    '북적이는 축제속 고요한 커피머신 작동음…카누가 만든 홈카페 [2026청춘커피페스티벌]',
+    '화면에 잘려 보이는 제목 대신 title 속성의 온전한 제목을 쓰고, "새 창 열림" 은 떼어 낸다',
+  );
+  assert.equal(items[0].link, 'https://www.hankyung.com/article/202609195237i', '원문 언론사 링크를 쓴다');
+  assert.equal(items[0].press, '한국경제', '형제 블록에 있는 언론사를 찾아야 한다');
+  assert.equal(items[0].date, '6시간 전');
+  assert.match(items[0].summary, /1\.7배 많은 9\.5g/);
+
+  assert.equal(items[1].press, '에너지경제', '두 번째 기사가 첫 기사의 언론사를 가져오면 안 된다');
+  assert.equal(items[1].date, '2026.09.19.');
+});
+
+test('뉴스: "네이버뉴스" 링크를 날짜로 착각하지 않는다', async () => {
+  await load(SAMPLES.NEWS_SDS_2026);
+  const [first] = await parseNews();
+  assert.ok(!/네이버뉴스/.test(first.date), `날짜에 "${first.date}" 가 들어왔다`);
+  assert.ok(!/네이버뉴스/.test(first.press));
+});
+
 // ── 블로그 ────────────────────────────────────────────────────────────────
 test('블로그: 구형 레이아웃에서 제목·작성자·날짜·요약을 뽑고 외부 블로그도 받는다', async () => {
   await load(SAMPLES.BLOG_LEGACY);
@@ -143,6 +169,20 @@ test('블로그: 알려지지 않은 구조는 폴백이 건져 낸다', async (
 
   assert.equal(items.length, 1, '"홈" 같은 짧은 링크는 제외되어야 한다');
   assert.match(items[0].title, /미래 레이아웃/);
+});
+
+test('블로그: 2026년 실제 구조 — 제목 블록 밖의 작성자·날짜까지 찾아낸다', async () => {
+  await load(SAMPLES.BLOG_SDS_2026);
+  const items = await parseBlogs();
+
+  assert.equal(items.length, 2, '썸네일용 빈 블록이 항목으로 잡히면 안 된다');
+  assert.equal(items[0].title, '홈카페 원두 추천 커피 입문자라면 그냥 외우세요');
+  assert.equal(items[0].author, '우당탕탕 지구여행', '형제 블록에 있는 작성자를 찾아야 한다');
+  assert.equal(items[0].date, '3일 전');
+  assert.match(items[0].summary, /쫀득한 크레마/);
+
+  assert.equal(items[1].author, '테니스리', '두 번째 글이 첫 글의 작성자를 가져오면 안 된다');
+  assert.equal(items[1].date, '2026.09.01.');
 });
 
 // ── 실제 캡처본 ───────────────────────────────────────────────────────────

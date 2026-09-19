@@ -14,6 +14,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { withScraper } from '../server/browser.js';
 import { BLOG_URL, NEWS_URL } from '../server/collect/naver-search.js';
@@ -129,8 +130,14 @@ async function inspect(page, { kind, label }) {
 }
 
 // ── 실행 ───────────────────────────────────────────────────────────────────
+// 리포트만 보고도 어느 버전이 낸 결과인지 알 수 있어야 한다.
+// 코드를 갱신하지 않고 다시 돌린 결과를 새 결과로 착각하면 엉뚱한 곳을 파게 된다.
+const version = createRequire(import.meta.url)('../package.json').version;
+
 say(`# 네이버 검색 파서 진단 리포트`);
-say(`\n생성: ${new Date().toISOString()}`);
+say(`\n- 생성: ${new Date().toISOString()}`);
+say(`- 코드 버전: **v${version}**  (\`npm run update\` 로 최신으로 맞출 수 있습니다)`);
+say(`- Node: ${process.version} · ${process.platform}`);
 
 await withScraper(async (context) => {
   const page = await context.newPage();

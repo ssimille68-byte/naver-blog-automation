@@ -20,7 +20,11 @@
 npm test          # 발행 + 검색 파싱 테스트 (네트워크 불필요)
 npm run capture   # 실제 네이버 HTML 로 파서 검증 + 픽스처 저장 (네트워크 필요)
 npm run doctor    # 환경 점검
+npm run update    # 최신 코드로 갱신 (git 없이, 깃허브 API 로 파일을 직접 받는다)
 ```
+
+파서를 고쳤으면 `package.json` 의 version 을 올린다. 진단 리포트 머리말에 그 버전이
+찍히므로, 사용자가 코드를 갱신하지 않고 다시 돌린 결과를 새 결과로 착각하는 일을 막는다.
 
 발행 로직을 고쳤다면 `npm test` 를 반드시 돌린다. 모의 에디터(`test/fixtures/editor.html`)는
 실제 SE ONE 의 거동(iframe, 복구 팝업, paste→HTML 변환, 파일 업로드, 발행 레이어)을 흉내 내므로
